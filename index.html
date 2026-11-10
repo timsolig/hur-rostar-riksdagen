@@ -1,0 +1,765 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vem röstar med vem</title>
+<style>
+:root {
+  color-scheme: light;
+  --bg: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink2: #52514e; --muted: #898781;
+  --grid: #e1e0d9; --axis: #c3c2b7; --line: rgba(11,11,11,.10); --hover: rgba(11,11,11,.045);
+  --accent: #2a78d6; --accent-wash: rgba(42,120,214,.10);
+  --ja: #008300; --nej: #e34948; --avst: #eda100; --franv: #dcdbd3;
+  --col: #2a78d6;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --line: rgba(255,255,255,.10); --hover: rgba(255,255,255,.05);
+    --accent: #3987e5; --accent-wash: rgba(57,135,229,.16);
+    --ja: #008300; --nej: #e34948; --avst: #c98500; --franv: #383835;
+    --col: #3987e5;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink2: #c3c2b7; --muted: #898781;
+  --grid: #2c2c2a; --axis: #383835; --line: rgba(255,255,255,.10); --hover: rgba(255,255,255,.05);
+  --accent: #3987e5; --accent-wash: rgba(57,135,229,.16);
+  --ja: #008300; --nej: #e34948; --avst: #c98500; --franv: #383835;
+  --col: #3987e5;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--ink);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+button, select, input { font: inherit; color: inherit; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+.muted { color: var(--muted); }
+.ink2 { color: var(--ink2); }
+.num { font-variant-numeric: tabular-nums; }
+
+header {
+  display: flex; align-items: baseline; gap: 24px; flex-wrap: wrap;
+  padding: 16px 24px 0; max-width: 1440px; margin: 0 auto;
+}
+header h1 { font-size: 18px; font-weight: 600; margin: 0; letter-spacing: -.01em; }
+nav { display: flex; gap: 4px; }
+nav button {
+  border: 0; background: none; padding: 6px 12px; border-radius: 8px; cursor: pointer; color: var(--ink2);
+}
+nav button:hover { background: var(--hover); }
+nav button[aria-selected="true"] { background: var(--accent-wash); color: var(--ink); font-weight: 600; }
+.banner {
+  max-width: 1440px; margin: 12px auto 0; padding: 8px 24px; color: var(--ink2);
+}
+.banner span { background: var(--accent-wash); padding: 4px 10px; border-radius: 6px; }
+
+main { max-width: 1440px; margin: 0 auto; padding: 16px 24px 24px; }
+.view[hidden] { display: none !important; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+
+/* Voteringar */
+#v-votes { display: grid; grid-template-columns: 104px 360px minmax(0, 1fr); gap: 16px; height: calc(100vh - 120px); min-height: 560px; }
+.years, .votelist { overflow-y: auto; }
+.years { padding: 6px; }
+.years button {
+  display: block; width: 100%; text-align: left; border: 0; background: none; border-radius: 8px;
+  padding: 7px 10px; cursor: pointer;
+}
+.years button small { display: block; color: var(--muted); font-size: 12px; }
+.years button:hover { background: var(--hover); }
+.years button[aria-current="true"] { background: var(--accent-wash); font-weight: 600; }
+.listcol { display: flex; flex-direction: column; min-height: 0; }
+.listcol .filter { padding: 10px; border-bottom: 1px solid var(--line); }
+.listcol input[type=search] {
+  width: 100%; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg);
+}
+.votelist { flex: 1; min-height: 0; padding: 4px; }
+.vrow { padding: 8px 10px; border-radius: 8px; cursor: pointer; }
+.vrow:hover { background: var(--hover); }
+.vrow.pinned { background: var(--accent-wash); }
+.vrow .meta { display: flex; gap: 8px; font-size: 12px; color: var(--muted); }
+.vrow .meta b { color: var(--ink2); font-weight: 600; }
+.vrow .t { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin: 2px 0 6px; }
+.tag { font-size: 11px; padding: 0 6px; border-radius: 4px; background: var(--hover); color: var(--ink2); }
+.thin { display: flex; gap: 2px; height: 4px; }
+.thin span { border-radius: 2px; }
+.empty { padding: 24px; color: var(--muted); }
+
+.detail { overflow-y: auto; padding: 20px 24px; }
+.detail h2 { font-size: 18px; font-weight: 600; margin: 0 0 4px; line-height: 1.3; }
+.detail .sub { color: var(--ink2); margin-bottom: 16px; }
+.legend { display: flex; gap: 16px; flex-wrap: wrap; margin: 4px 0 8px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; color: var(--ink2); }
+.legend b { color: var(--ink); font-weight: 600; }
+.sw { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.ring { box-shadow: inset 0 0 0 1.5px var(--muted); }
+.note { color: var(--muted); font-size: 12px; text-align: center; margin: 4px auto 0; max-width: 60ch; }
+.hemi { width: 100%; max-width: 620px; display: block; margin: 0 auto; }
+.hemi circle { stroke: var(--surface); }
+.hemi text { fill: var(--ink2); }
+.bars { margin-top: 18px; display: grid; grid-template-columns: 52px minmax(0, 1fr) repeat(5, 36px); gap: 6px 8px; align-items: center; }
+.bars .h { font-size: 11px; color: var(--muted); text-align: right; }
+.bars .p { display: flex; align-items: center; gap: 6px; font-weight: 600; }
+.bars .n { text-align: right; color: var(--ink2); font-variant-numeric: tabular-nums; }
+.bars .n.line { color: var(--ink); font-weight: 700; }
+.stack { display: flex; gap: 2px; height: 14px; }
+.stack span { min-width: 0; }
+.stack span:last-child { border-radius: 0 4px 4px 0; }
+.dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; box-shadow: 0 0 0 1px var(--line); flex: none; }
+
+/* Filter row */
+.filters { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; }
+.filters label { display: inline-flex; align-items: center; gap: 6px; color: var(--ink2); }
+.filters select { padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+
+/* Samarbete */
+.section { padding: 20px 24px; margin-bottom: 16px; }
+.section h2 { font-size: 16px; font-weight: 600; margin: 0 0 4px; }
+.section .lead { color: var(--ink2); margin: 0 0 16px; max-width: 72ch; }
+.matrix { overflow-x: auto; }
+.matrix table { border-collapse: separate; border-spacing: 2px; }
+.matrix th { font-weight: 600; padding: 4px 6px; white-space: nowrap; }
+.matrix th.r { text-align: left; }
+.matrix td.c {
+  width: 52px; height: 40px; text-align: center; border-radius: 4px; font-variant-numeric: tabular-nums; cursor: default;
+}
+.matrix td.c:hover { outline: 2px solid var(--ink); outline-offset: -2px; }
+.matrix td.self { background: var(--hover); color: var(--muted); }
+.matrix td.na { color: var(--muted); }
+.matrix td.best { padding-left: 14px; white-space: nowrap; color: var(--ink2); }
+.ph { display: inline-flex; align-items: center; gap: 5px; }
+.scale { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 12px; color: var(--muted); }
+.scale .ramp { width: 160px; height: 8px; border-radius: 4px; }
+.notes { color: var(--ink2); }
+.notes p { margin: 0 0 8px; max-width: 72ch; }
+
+/* Egen majoritet */
+.chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--surface); cursor: pointer;
+}
+.chip:hover { background: var(--hover); }
+.chip[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-wash); font-weight: 600; }
+.chip small { color: var(--muted); font-weight: 400; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 16px; }
+.tile { padding: 16px 20px; }
+.tile .l { color: var(--ink2); }
+.tile .v { font-size: 32px; font-weight: 600; letter-spacing: -.01em; margin: 2px 0; }
+.tile .s { color: var(--muted); }
+.meter { position: relative; height: 8px; border-radius: 4px; background: var(--grid); margin-top: 10px; }
+.meter i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; background: var(--col); }
+.meter b { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--ink); }
+.cols svg { display: block; width: 100%; }
+.cols text { fill: var(--muted); font-size: 11px; }
+.pairs { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 6px 24px; }
+.pairs div { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; border-bottom: 1px solid var(--line); }
+.splits .vrow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 16px; }
+.lines { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 12px; color: var(--ink2); justify-content: flex-end; align-self: center; }
+.lines span { display: inline-flex; align-items: center; gap: 4px; }
+.hint { color: var(--muted); padding: 8px 0; }
+
+#tip {
+  position: fixed; pointer-events: none; z-index: 10; background: var(--surface); color: var(--ink);
+  border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font-size: 12px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.12); max-width: 280px; display: none;
+}
+#tip strong { font-size: 13px; }
+footer { max-width: 1440px; margin: 0 auto; padding: 0 24px 24px; color: var(--muted); font-size: 12px; }
+.loading { opacity: .5; transition: opacity .2s; }
+
+@media (max-width: 900px) {
+  header { padding: 12px 16px 0; gap: 8px 16px; }
+  main { padding: 12px 16px 16px; }
+  .banner { padding: 8px 16px; }
+  footer { padding: 0 16px 16px; }
+  #v-votes { display: flex; flex-direction: column; height: auto; min-height: 0; }
+  .years { display: flex; gap: 4px; overflow-x: auto; overflow-y: hidden; padding: 6px; order: 0; }
+  .years button { width: auto; flex: none; text-align: center; }
+  .detail { order: 1; overflow: visible; padding: 16px; }
+  .listcol { order: 2; max-height: 70vh; }
+  .section { padding: 16px; }
+  .bars { grid-template-columns: 40px minmax(0, 1fr) repeat(5, 27px); gap: 6px 5px; }
+  .bars .h { font-size: 10px; }
+  .splits .vrow { grid-template-columns: minmax(0, 1fr); }
+  .lines { justify-content: flex-start; }
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>Vem röstar med vem</h1>
+  <nav role="tablist">
+    <button role="tab" data-tab="voteringar">Voteringar</button>
+    <button role="tab" data-tab="samarbete">Samarbete</button>
+    <button role="tab" data-tab="majoritet">Egen majoritet</button>
+  </nav>
+</header>
+<div class="banner" id="banner" hidden><span>Testdata, inte riktiga voteringar</span></div>
+
+<main>
+  <section class="view" id="v-votes" data-view="voteringar">
+    <div class="card years" id="years" aria-label="Riksmöten"></div>
+    <div class="card listcol">
+      <div class="filter"><input type="search" id="q" placeholder="Filtrera på titel eller beteckning" aria-label="Filtrera voteringar"></div>
+      <div class="votelist" id="votelist"></div>
+    </div>
+    <div class="card detail" id="detail"><div class="empty">Laddar…</div></div>
+  </section>
+
+  <section class="view" data-view="samarbete" hidden>
+    <div class="filters" data-filters></div>
+    <div class="card section">
+      <h2>Hur ofta partierna röstar lika</h2>
+      <p class="lead">Andel voteringar där två partier hade samma linje. Raden till höger visar vilket parti varje parti oftast röstade som.</p>
+      <div class="matrix" id="matrix"></div>
+      <div class="scale"><span>0 %</span><span class="ramp" id="ramp"></span><span>100 %</span></div>
+    </div>
+    <div class="card section notes">
+      <h2>Så räknas det</h2>
+      <p>Ett partis linje i en votering är det alternativ (ja, nej eller avstår) som flest av partiets närvarande ledamöter valde. Frånvarande räknas inte. Är det oavgjort inom partiet räknas voteringen inte för det partiet.</p>
+      <p>Bara beslut som gått till votering finns med. Riksdagen fattar många beslut utan omröstning, så den verkliga samsynen är större än siffrorna här. Partilösa ledamöter ingår inte i statistiken. Folkpartiet räknas som Liberalerna.</p>
+    </div>
+  </section>
+
+  <section class="view" data-view="majoritet" hidden>
+    <div class="filters" data-filters></div>
+    <div class="chips" id="chips"></div>
+    <div id="coal"></div>
+  </section>
+</main>
+<footer id="foot">Källa: Sveriges riksdag, data.riksdagen.se</footer>
+<div id="tip" role="tooltip"></div>
+
+<script>
+const PARTY = {
+  V:  { n: "Vänsterpartiet",      c: "#b3161f" },
+  S:  { n: "Socialdemokraterna",  c: "#e8112d" },
+  MP: { n: "Miljöpartiet",        c: "#53a045" },
+  C:  { n: "Centerpartiet",       c: "#00873f" },
+  L:  { n: "Liberalerna",         c: "#006ab3" },
+  KD: { n: "Kristdemokraterna",   c: "#1b3d8f" },
+  M:  { n: "Moderaterna",         c: "#52bdec" },
+  SD: { n: "Sverigedemokraterna", c: "#e2d200" },
+  "-": { n: "Partilösa",          c: "#898781" },
+};
+const ORDER = ["V", "S", "MP", "C", "L", "KD", "M", "SD"];
+const VOTE = [
+  { n: "Ja", s: "Ja", v: "--ja" },
+  { n: "Nej", s: "Nej", v: "--nej" },
+  { n: "Avstår", s: "Avst", v: "--avst" },
+  { n: "Frånvarande", s: "Frånv", v: "--franv" },
+];
+const CAT = [
+  { n: "Ja", s: "Ja", v: "--ja" },
+  { n: "Nej", s: "Nej", v: "--nej" },
+  { n: "Avstår", s: "Avst", v: "--avst" },
+  { n: "Troligen kvittade", s: "Kvitt", ring: true },
+  { n: "Frånvarande", s: "Frånv", v: "--franv" },
+];
+const SEQ = ["#cde2fb", "#b7d3f6", "#9ec5f4", "#86b6ef", "#6da7ec", "#5598e7", "#3987e5", "#2a78d6", "#256abf", "#1c5cab", "#184f95", "#104281", "#0d366b"];
+
+const S = {
+  index: null, cache: new Map(), tab: "voteringar",
+  rm: null, year: null, pinned: null, q: "",
+  from: null, to: null, sakOnly: false, coalition: new Set(),
+};
+
+/* ---------- små hjälpare ---------- */
+const $ = (sel, root = document) => root.querySelector(sel);
+const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
+function el(tag, attrs = {}, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v == null || v === false) continue;
+    if (k === "class") e.className = v;
+    else if (k === "style") e.style.cssText = v;
+    else if (k.startsWith("on")) e.addEventListener(k.slice(2), v);
+    else e.setAttribute(k, v === true ? "" : v);
+  }
+  for (const k of kids.flat(Infinity)) if (k != null && k !== false) e.append(k instanceof Node ? k : document.createTextNode(k));
+  return e;
+}
+const SVG = "http://www.w3.org/2000/svg";
+function sv(tag, attrs = {}, ...kids) {
+  const e = document.createElementNS(SVG, tag);
+  for (const [k, v] of Object.entries(attrs)) if (v != null) e.setAttribute(k, v);
+  for (const k of kids.flat(Infinity)) if (k != null) e.append(k instanceof Node ? k : document.createTextNode(k));
+  return e;
+}
+const nf = new Intl.NumberFormat("sv-SE");
+const pct = (x) => (x == null ? "" : new Intl.NumberFormat("sv-SE", { maximumFractionDigits: 0 }).format(x * 100) + " %");
+const pctNum = (x) => new Intl.NumberFormat("sv-SE", { maximumFractionDigits: 0 }).format(x * 100);
+const date = (d) => (d ? new Date(d + "T12:00:00").toLocaleDateString("sv-SE", { day: "numeric", month: "short", year: "numeric" }) : "");
+const party = (p) => PARTY[p] || { n: p, c: "#898781" };
+const dot = (p) => el("span", { class: "dot", style: `background:${party(p).c}` });
+const cssVar = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const lineName = (l) => (l == null ? "delad" : VOTE[l].n.toLowerCase());
+
+/* ---------- tooltip ---------- */
+const tip = $("#tip");
+function showTip(evt, strong, ...rest) {
+  tip.replaceChildren(el("strong", {}, strong), ...rest.map((r) => el("div", { class: "ink2" }, r)));
+  tip.style.display = "block";
+  const pad = 14, r = tip.getBoundingClientRect();
+  let x = evt.clientX + pad, y = evt.clientY + pad;
+  if (x + r.width > innerWidth - 8) x = evt.clientX - r.width - pad;
+  if (y + r.height > innerHeight - 8) y = evt.clientY - r.height - pad;
+  tip.style.left = x + "px"; tip.style.top = y + "px";
+}
+const hideTip = () => (tip.style.display = "none");
+
+/* ---------- data ---------- */
+function lineOf(q) {
+  const [j, n, a] = q, m = Math.max(j, n, a);
+  if (!m) return null;
+  if ((j === m) + (n === m) + (a === m) > 1) return null;
+  return j === m ? 0 : n === m ? 1 : 2;
+}
+function prep(raw) {
+  const P = raw.parties;
+  const votes = raw.votes.map(([d, b, p, a, flat], i) => {
+    const c = {}, line = {}, tot = [0, 0, 0, 0];
+    P.forEach((code, k) => {
+      const q = flat.slice(4 * k, 4 * k + 4);
+      c[code] = q; q.forEach((x, j) => (tot[j] += x));
+      line[code] = lineOf(q);
+    });
+    const bet = raw.bet[b] || ["", ""];
+    return { i, d, b, p, a, c, line, tot, title: bet[0] || `Votering ${b}`, dok: bet[1] };
+  });
+  return { rm: raw.rm, parties: P, votes };
+}
+function loadYear(rm) {
+  if (!S.cache.has(rm)) {
+    const y = S.index.years.find((x) => x.rm === rm);
+    S.cache.set(rm, fetch("data/" + y.file).then((r) => {
+      if (!r.ok) throw new Error(r.status);
+      return r.json();
+    }).then(prep));
+  }
+  return S.cache.get(rm);
+}
+function rangeYears() {
+  const asc = [...S.index.years].reverse();
+  const a = asc.findIndex((y) => y.rm === S.from), b = asc.findIndex((y) => y.rm === S.to);
+  const [lo, hi] = a <= b ? [a, b] : [b, a];
+  return asc.slice(lo, hi + 1).map((y) => y.rm);
+}
+const loadRange = () => Promise.all(rangeYears().map(loadYear));
+const used = (v) => !(S.sakOnly && v.a === "m");
+function partiesIn(years) {
+  const found = new Set();
+  for (const y of years) for (const p of y.parties) if (p !== "-") found.add(p);
+  return [...ORDER.filter((p) => found.has(p)), ...[...found].filter((p) => !ORDER.includes(p)).sort()];
+}
+
+/* ---------- kvittning ----------
+   Uppskattning: frånvarande hos partier vars linje är ja och partier vars linje är nej
+   paras ihop. min(frånvaro ja-sidan, frånvaro nej-sidan) par räknas som troligen kvittade
+   och fördelas på partierna efter deras andel av sidans frånvaro (största rest). */
+function withPairing(year, v) {
+  const side = [[], []], abs = [0, 0];
+  for (const p of year.parties) {
+    const l = v.line[p];
+    if (l === 0 || l === 1) { side[l].push(p); abs[l] += v.c[p][3]; }
+  }
+  const pairs = Math.min(abs[0], abs[1]), k = {};
+  side.forEach((ps, s) => {
+    if (!abs[s]) return;
+    const raw = ps.map((p) => (pairs * v.c[p][3]) / abs[s]), fl = raw.map(Math.floor);
+    const rem = pairs - fl.reduce((a, b) => a + b, 0);
+    raw.map((x, i) => [x - fl[i], i]).sort((a, b) => b[0] - a[0]).slice(0, rem).forEach(([, i]) => fl[i]++);
+    ps.forEach((p, i) => (k[p] = fl[i]));
+  });
+  const q = {}, tot = [0, 0, 0, 0, 0];
+  for (const p of year.parties) {
+    const [j, n, a, f] = v.c[p], kk = k[p] || 0;
+    q[p] = [j, n, a, kk, f - kk];
+    q[p].forEach((x, i) => (tot[i] += x));
+  }
+  return { q, tot, pairs };
+}
+const catStyle = (i) => (CAT[i].ring ? "background:transparent;box-shadow:inset 0 0 0 1.5px var(--muted)" : `background:var(${CAT[i].v})`);
+
+/* ---------- riksdagsgrafik ---------- */
+const seatCache = new Map();
+function seats(n) {
+  if (seatCache.has(n)) return seatCache.get(n);
+  const rows = n > 200 ? 11 : n > 80 ? 8 : 5, inner = 0.42;
+  const radii = Array.from({ length: rows }, (_, i) => inner + ((1 - inner) * i) / (rows - 1));
+  const sum = radii.reduce((a, b) => a + b, 0);
+  const counts = radii.map((r) => Math.floor((n * r) / sum));
+  let rem = n - counts.reduce((a, b) => a + b, 0);
+  for (let i = rows - 1; rem > 0; i = (i - 1 + rows) % rows, rem--) counts[i]++;
+  const out = [];
+  radii.forEach((r, i) => {
+    const k = counts[i];
+    for (let j = 0; j < k; j++) {
+      const a = k === 1 ? Math.PI / 2 : Math.PI * (1 - j / (k - 1));
+      out.push({ x: r * Math.cos(a), y: -r * Math.sin(a), a, r });
+    }
+  });
+  out.sort((p, q) => q.a - p.a || p.r - q.r);
+  const gap = Math.min((1 - inner) / (rows - 1), Math.PI / (counts[rows - 1] - 1));
+  const res = { list: out, rad: gap * 0.42 };
+  seatCache.set(n, res);
+  return res;
+}
+function hemicycle(year, v, P) {
+  const order = year.parties;
+  const total = P.tot.reduce((a, b) => a + b, 0);
+  const { list, rad } = seats(total);
+  const svg = sv("svg", { class: "hemi", viewBox: "-1.12 -1.2 2.24 1.27", role: "img",
+    "aria-label": CAT.map((c, i) => `${c.n.toLowerCase()} ${P.tot[i]}`).join(", ") });
+  let k = 0;
+  for (const p of order) {
+    const q = P.q[p], start = k;
+    q.forEach((cnt, vi) => {
+      for (let m = 0; m < cnt; m++, k++) {
+        const s = list[k], ring = CAT[vi].ring;
+        svg.append(sv("circle", { cx: s.x.toFixed(4), cy: s.y.toFixed(4), r: (ring ? rad * 0.82 : rad).toFixed(4),
+          fill: ring ? "transparent" : `var(${CAT[vi].v})`, "stroke-width": ring ? 0.008 : 0.006,
+          style: ring ? "stroke:var(--muted)" : null, "data-p": p, "data-v": vi }));
+      }
+    });
+    const n = k - start;
+    if (n >= 5) {
+      const mid = (list[start].a + list[k - 1].a) / 2;
+      svg.append(sv("text", { x: (1.09 * Math.cos(mid)).toFixed(3), y: (-1.09 * Math.sin(mid) + 0.02).toFixed(3),
+        "text-anchor": "middle", "font-size": 0.055, "font-weight": 600 }, p === "-" ? "" : p));
+    }
+  }
+  svg.append(sv("text", { x: 0, y: -0.07, "text-anchor": "middle", "font-size": 0.075, "font-weight": 600, style: "fill:var(--ink)" },
+    `${v.tot[0]} ja · ${v.tot[1]} nej`));
+  if (v.tot[2]) svg.append(sv("text", { x: 0, y: 0.01, "text-anchor": "middle", "font-size": 0.05 }, `${v.tot[2]} avstår`));
+  svg.addEventListener("pointermove", (e) => {
+    const t = e.target;
+    if (t.tagName !== "circle") return hideTip();
+    const p = t.dataset.p;
+    showTip(e, party(p).n, CAT[+t.dataset.v].n);
+  });
+  svg.addEventListener("pointerleave", hideTip);
+  return svg;
+}
+
+/* ---------- voteringsvy ---------- */
+function renderYears() {
+  const box = $("#years");
+  box.replaceChildren(...S.index.years.map((y) =>
+    el("button", { "aria-current": y.rm === S.rm ? "true" : "false", onclick: () => selectYear(y.rm) },
+      y.rm, el("small", {}, `${nf.format(y.n)} vot.`))));
+}
+function thinBar(v) {
+  const total = v.tot.reduce((a, b) => a + b, 0) || 1;
+  return el("div", { class: "thin", "aria-hidden": "true" },
+    v.tot.map((x, i) => (x ? el("span", { style: `flex:${x / total};background:var(${VOTE[i].v})` }) : null)));
+}
+function voteLabel(v) { return v.p ? `${v.b} p. ${v.p}` : v.b; }
+const isBet = (v) => /[a-zåäö]/i.test(v.b);
+function voteRow(year, v, onPick) {
+  return el("div", { class: "vrow" + (S.pinned === v.i && S.rm === year.rm ? " pinned" : ""), tabindex: 0, "data-i": v.i,
+    onmouseenter: () => matchMedia("(hover: hover)").matches && renderDetail(year, v),
+    onfocus: () => renderDetail(year, v),
+    onclick: onPick, onkeydown: (e) => e.key === "Enter" && onPick() },
+    el("div", { class: "meta" }, el("span", {}, date(v.d)), el("b", {}, voteLabel(v)), v.a === "m" ? el("span", { class: "tag" }, "motivfrågan") : null),
+    el("div", { class: "t" }, v.title),
+    thinBar(v));
+}
+async function selectYear(rm, pick) {
+  S.rm = rm; renderYears();
+  const list = $("#votelist");
+  list.classList.add("loading");
+  const year = await loadYear(rm);
+  if (S.rm !== rm) return;
+  S.year = year;
+  S.pinned = pick ?? (year.votes.length ? year.votes[year.votes.length - 1].i : null);
+  renderList();
+  list.classList.remove("loading");
+  const v = year.votes[S.pinned];
+  if (v) renderDetail(year, v); else $("#detail").replaceChildren(el("div", { class: "empty" }, "Inga voteringar."));
+  const row = $(`.vrow[data-i="${S.pinned}"]`, list);
+  if (row && pick != null) row.scrollIntoView({ block: "center" });
+}
+function renderList() {
+  const year = S.year, q = S.q.trim().toLowerCase();
+  const rows = [];
+  for (let k = year.votes.length - 1; k >= 0; k--) {
+    const v = year.votes[k];
+    if (q && !(v.title.toLowerCase().includes(q) || v.b.toLowerCase().includes(q))) continue;
+    rows.push(voteRow(year, v, () => pin(year, v)));
+  }
+  const list = $("#votelist");
+  list.replaceChildren(...(rows.length ? rows : [el("div", { class: "empty" }, "Inga träffar.")]));
+}
+function pin(year, v) {
+  S.pinned = v.i;
+  $$(".vrow.pinned", $("#votelist")).forEach((r) => r.classList.remove("pinned"));
+  $(`.vrow[data-i="${v.i}"]`, $("#votelist"))?.classList.add("pinned");
+  renderDetail(year, v);
+  if (!matchMedia("(hover: hover)").matches) $("#detail").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+function renderDetail(year, v) {
+  const d = $("#detail");
+  const P = withPairing(year, v);
+  const maxSeats = Math.max(...year.parties.map((p) => v.c[p].reduce((a, b) => a + b, 0)));
+  const bars = el("div", { class: "bars" },
+    el("span"), el("span"), CAT.map((x) => el("span", { class: "h" }, x.s)),
+    year.parties.flatMap((p) => {
+      const q = P.q[p], n = q.reduce((a, b) => a + b, 0);
+      if (!n) return [];
+      const ln = v.line[p];
+      return [
+        el("span", { class: "p", title: party(p).n }, dot(p), p === "-" ? "Pl." : p),
+        el("div", { class: "stack", style: `width:${(100 * n) / maxSeats}%`, role: "img",
+          "aria-label": `${party(p).n}: ${q.map((x, i) => `${CAT[i].n.toLowerCase()} ${x}`).join(", ")}` },
+          q.map((x, i) => (x ? el("span", { style: `flex:${x};${catStyle(i)}`,
+            onpointermove: (e) => showTip(e, `${x} ${CAT[i].n.toLowerCase()}`, party(p).n), onpointerleave: hideTip }) : null))),
+        q.map((x, i) => el("span", { class: "n" + (i === ln ? " line" : "") }, x ? nf.format(x) : "·")),
+      ];
+    }));
+  const link = v.dok ? el("a", { href: `https://data.riksdagen.se/dokument/${encodeURIComponent(v.dok)}.html`, target: "_blank", rel: "noopener" }, isBet(v) ? "Betänkandet ↗" : "Omröstningen ↗") : null;
+  d.replaceChildren(...[
+    el("h2", {}, v.title),
+    el("div", { class: "sub" }, `${voteLabel(v)} · ${v.a === "m" ? "motivfrågan" : "sakfrågan"} · ${date(v.d)} · ${year.rm} `, link),
+    el("div", { class: "legend" }, CAT.map((x, i) => el("span", {}, el("i", { class: "sw", style: catStyle(i) }), x.n, el("b", { class: "num" }, nf.format(P.tot[i]))))),
+    hemicycle(year, v, P),
+    P.pairs ? el("p", { class: "note" }, `Kvittning redovisas inte i riksdagens data. Här räknas lika många frånvarande på ja- och nejsidan som kvittade, i den här voteringen ${P.pairs} par.`) : null,
+    bars,
+  ].filter(Boolean));
+}
+
+/* ---------- filter ---------- */
+function renderFilters() {
+  const asc = [...S.index.years].reverse();
+  const sel = (key, label) => el("label", {}, label,
+    el("select", { onchange: (e) => { S[key] = e.target.value; renderFilters(); renderTab(); } },
+      asc.map((y) => el("option", { value: y.rm, selected: S[key] === y.rm }, y.rm))));
+  for (const box of $$("[data-filters]")) {
+    box.replaceChildren(sel("from", "Från"), sel("to", "Till"),
+      el("label", {}, el("input", { type: "checkbox", checked: S.sakOnly,
+        onchange: (e) => { S.sakOnly = e.target.checked; renderFilters(); renderTab(); } }), "Bara sakfrågan"));
+  }
+}
+
+/* ---------- samarbete ---------- */
+function seqColor(x) {
+  const dark = cssVar("--surface") === "#1a1a19";
+  const ramp = dark ? [...SEQ].reverse() : SEQ;
+  const c = ramp[Math.min(ramp.length - 1, Math.max(0, Math.round(x * (ramp.length - 1))))];
+  const [r, g, b] = [1, 3, 5].map((o) => parseInt(c.slice(o, o + 2), 16) / 255).map((u) => (u <= 0.03928 ? u / 12.92 : ((u + 0.055) / 1.055) ** 2.4));
+  const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  return { bg: c, fg: lum > 0.3 ? "#0b0b0b" : "#ffffff" };
+}
+function pairStats(years, P) {
+  const n = P.length, tot = P.map(() => Array(n).fill(0)), agree = P.map(() => Array(n).fill(0));
+  for (const y of years) for (const v of y.votes) {
+    if (!used(v)) continue;
+    const L = P.map((p) => v.line[p]);
+    for (let i = 0; i < n; i++) {
+      if (L[i] == null) continue;
+      for (let j = i + 1; j < n; j++) {
+        if (L[j] == null) continue;
+        tot[i][j]++; tot[j][i]++;
+        if (L[i] === L[j]) { agree[i][j]++; agree[j][i]++; }
+      }
+    }
+  }
+  return { tot, agree };
+}
+async function renderMatrix() {
+  const box = $("#matrix");
+  box.classList.add("loading");
+  const years = await loadRange();
+  box.classList.remove("loading");
+  const P = partiesIn(years), { tot, agree } = pairStats(years, P);
+  const head = el("tr", {}, el("th"), P.map((p) => el("th", { title: party(p).n }, el("span", { class: "ph" }, dot(p), p))), el("th", { class: "r" }, "Röstar oftast som"));
+  const body = P.map((p, i) => {
+    let best = -1;
+    P.forEach((_, j) => { if (j !== i && tot[i][j] && (best < 0 || agree[i][j] / tot[i][j] > agree[i][best] / tot[i][best])) best = j; });
+    return el("tr", {},
+      el("th", { class: "r", title: party(p).n }, el("span", { class: "ph" }, dot(p), p)),
+      P.map((q, j) => {
+        if (i === j) return el("td", { class: "c self" }, "·");
+        if (!tot[i][j]) return el("td", { class: "c na" }, "");
+        const x = agree[i][j] / tot[i][j], col = seqColor(x);
+        return el("td", { class: "c", style: `background:${col.bg};color:${col.fg}`, tabindex: 0,
+          onpointermove: (e) => showTip(e, pct(x), `${party(p).n} och ${party(q).n}`, `lika i ${nf.format(agree[i][j])} av ${nf.format(tot[i][j])} voteringar`),
+          onpointerleave: hideTip }, pctNum(x));
+      }),
+      el("td", { class: "best" }, best >= 0 ? el("span", { class: "ph" }, dot(P[best]), `${P[best]} ${pct(agree[i][best] / tot[i][best])}`) : ""));
+  });
+  box.replaceChildren(el("table", {}, el("thead", {}, head), el("tbody", {}, body)));
+  $("#ramp").style.background = `linear-gradient(90deg, ${(cssVar("--surface") === "#1a1a19" ? [...SEQ].reverse() : SEQ).join(",")})`;
+}
+
+/* ---------- egen majoritet ---------- */
+function coalitionStats(years, set) {
+  const P = [...set], perYear = [], splits = [];
+  let n = 0, agree = 0;
+  for (const y of years) {
+    let yn = 0, ya = 0;
+    for (const v of y.votes) {
+      if (!used(v)) continue;
+      const L = P.map((p) => v.line[p]);
+      if (L.some((l) => l == null)) continue;
+      yn++;
+      if (L.every((l) => l === L[0])) ya++; else splits.push({ y, v });
+    }
+    perYear.push({ rm: y.rm, n: yn, a: ya });
+    n += yn; agree += ya;
+  }
+  splits.sort((a, b) => (b.v.d + b.v.b).localeCompare(a.v.d + a.v.b));
+  return { n, agree, perYear, splits };
+}
+function columns(perYear) {
+  const W = Math.max(280, $("#coal").clientWidth - 48), H = 200, padL = 36, padB = 24, padT = 18;
+  const bw = Math.min(24, ((W - padL) / perYear.length) * 0.6), step = (W - padL) / perYear.length;
+  const y = (x) => padT + (H - padT - padB) * (1 - x);
+  const svg = sv("svg", { viewBox: `0 0 ${W} ${H}`, height: H, role: "img", "aria-label": "Andel lika röster per riksmöte" });
+  [0, 0.25, 0.5, 0.75, 1].forEach((t) => {
+    svg.append(sv("line", { x1: padL, x2: W, y1: y(t), y2: y(t), stroke: t ? "var(--grid)" : "var(--axis)", "stroke-width": 1 }));
+    svg.append(sv("text", { x: padL - 6, y: y(t) + 4, "text-anchor": "end" }, `${t * 100} %`));
+  });
+  const every = Math.ceil(perYear.length / Math.floor((W - padL) / 44));
+  perYear.forEach((d, i) => {
+    const cx = padL + step * i + step / 2;
+    if (d.n) {
+      const x = d.a / d.n, top = y(x), base = y(0), h = Math.max(0, base - top), r = Math.min(4, h);
+      const path = `M${cx - bw / 2},${base} V${top + r} Q${cx - bw / 2},${top} ${cx - bw / 2 + r},${top} H${cx + bw / 2 - r} Q${cx + bw / 2},${top} ${cx + bw / 2},${top + r} V${base} Z`;
+      svg.append(sv("path", { d: path, fill: "var(--col)" }));
+      svg.append(sv("rect", { x: padL + step * i, y: padT, width: step, height: H - padT - padB, fill: "transparent", tabindex: 0 }));
+      const hit = svg.lastChild;
+      hit.addEventListener("pointermove", (e) => showTip(e, pct(x), d.rm, `lika i ${nf.format(d.a)} av ${nf.format(d.n)}`));
+      hit.addEventListener("pointerleave", hideTip);
+    }
+    if (i % every === 0 || i === perYear.length - 1) svg.append(sv("text", { x: cx, y: H - 6, "text-anchor": "middle" }, d.rm.slice(2)));
+  });
+  const last = perYear.at(-1);
+  if (last?.n) {
+    const cx = padL + step * (perYear.length - 1) + step / 2;
+    svg.append(sv("text", { x: cx, y: y(last.a / last.n) - 6, "text-anchor": "middle", style: "fill:var(--ink);font-weight:600" }, pct(last.a / last.n)));
+  }
+  return svg;
+}
+async function renderCoalition() {
+  const box = $("#coal");
+  box.classList.add("loading");
+  const years = await loadRange();
+  box.classList.remove("loading");
+  const P = partiesIn(years);
+  for (const p of [...S.coalition]) if (!P.includes(p)) S.coalition.delete(p);
+  const latest = years.at(-1)?.votes.at(-1);
+  const seatsOf = (p) => (latest?.c[p] || [0, 0, 0, 0]).reduce((a, b) => a + b, 0);
+  const total = latest ? latest.tot.reduce((a, b) => a + b, 0) : 349;
+  $("#chips").replaceChildren(...P.map((p) => el("button", { class: "chip", "aria-pressed": S.coalition.has(p) ? "true" : "false",
+    onclick: () => { S.coalition.has(p) ? S.coalition.delete(p) : S.coalition.add(p); renderCoalition(); } },
+    dot(p), party(p).n, el("small", { class: "num" }, seatsOf(p) ? nf.format(seatsOf(p)) : ""))));
+
+  const set = ORDER.filter((p) => S.coalition.has(p)).concat([...S.coalition].filter((p) => !ORDER.includes(p)));
+  const seatsSum = set.reduce((a, p) => a + seatsOf(p), 0), need = Math.floor(total / 2) + 1;
+  const seatTile = el("div", { class: "card tile" },
+    el("div", { class: "l" }, "Mandat"),
+    el("div", { class: "v" }, `${nf.format(seatsSum)} av ${nf.format(total)}`),
+    el("div", { class: "s" }, seatsSum >= need ? "Egen majoritet" : `Saknar majoritet, behöver ${need}`),
+    el("div", { class: "meter", role: "img", "aria-label": `${seatsSum} av ${total} mandat` },
+      el("i", { style: `width:${(100 * seatsSum) / total}%` }), el("b", { style: `left:${(100 * need) / total}%` })),
+    el("div", { class: "s", style: "margin-top:8px" }, latest ? `Enligt senaste voteringen ${date(latest.d)}` : ""));
+
+  if (set.length < 2) {
+    box.replaceChildren(el("div", { class: "tiles" }, seatTile),
+      el("p", { class: "hint" }, "Välj minst två partier för att se hur ofta de röstat lika."));
+    return;
+  }
+  const st = coalitionStats(years, set);
+  const share = st.n ? st.agree / st.n : null;
+  const agreeTile = el("div", { class: "card tile" },
+    el("div", { class: "l" }, "Röstade lika"),
+    el("div", { class: "v" }, st.n ? pct(share) : "Ingen data"),
+    el("div", { class: "s" }, `i ${nf.format(st.agree)} av ${nf.format(st.n)} voteringar där alla hade en linje`));
+
+  const { tot, agree } = pairStats(years, set);
+  const pairs = [];
+  for (let i = 0; i < set.length; i++) for (let j = i + 1; j < set.length; j++)
+    if (tot[i][j]) pairs.push({ a: set[i], b: set[j], x: agree[i][j] / tot[i][j], n: tot[i][j] });
+  pairs.sort((p, q) => p.x - q.x);
+
+  const splitRows = st.splits.slice(0, 20).map(({ y, v }) =>
+    el("div", { class: "vrow", tabindex: 0, onclick: () => jumpTo(y.rm, v.i), onkeydown: (e) => e.key === "Enter" && jumpTo(y.rm, v.i) },
+      el("div", {},
+        el("div", { class: "meta" }, el("span", {}, date(v.d)), el("b", {}, voteLabel(v)), v.a === "m" ? el("span", { class: "tag" }, "motivfrågan") : null),
+        el("div", { class: "t" }, v.title)),
+      el("div", { class: "lines" }, set.map((p) => el("span", {}, dot(p), `${p} ${lineName(v.line[p])}`)))));
+
+  box.replaceChildren(...[
+    el("div", { class: "tiles" }, seatTile, agreeTile),
+    el("div", { class: "card section cols" }, el("h2", {}, "Per riksmöte"),
+      el("p", { class: "lead" }, "Andel voteringar där de valda partierna hade samma linje."), columns(st.perYear)),
+    pairs.length > 1 ? el("div", { class: "card section" }, el("h2", {}, "Par inom majoriteten"),
+      el("p", { class: "lead" }, "Lägst samsyn först. Det är där majoriteten oftast spricker."),
+      el("div", { class: "pairs" }, pairs.map((p) => el("div", {}, el("span", { class: "ph" }, dot(p.a), p.a, " och ", dot(p.b), p.b),
+        el("span", { class: "num", title: `${nf.format(p.n)} voteringar` }, pct(p.x)))))) : null,
+    el("div", { class: "card section splits" }, el("h2", {}, "Senaste voteringarna där de röstade olika"),
+      st.splits.length ? el("p", { class: "lead" }, `Visar ${Math.min(20, st.splits.length)} av ${nf.format(st.splits.length)}. Klicka för att se voteringen.`) : null,
+      splitRows.length ? splitRows : el("p", { class: "hint" }, "Inga voteringar där de röstade olika.")),
+  ].filter(Boolean));
+}
+function jumpTo(rm, i) {
+  setTab("voteringar");
+  selectYear(rm, i);
+}
+
+/* ---------- flikar ---------- */
+function setTab(t) {
+  S.tab = t;
+  if (location.hash !== "#" + t) history.replaceState(null, "", "#" + t);
+  $$("nav button").forEach((b) => b.setAttribute("aria-selected", b.dataset.tab === t ? "true" : "false"));
+  $$(".view").forEach((v) => (v.hidden = v.dataset.view !== t));
+  hideTip();
+  renderTab();
+}
+function renderTab() {
+  if (S.tab === "samarbete") renderMatrix();
+  else if (S.tab === "majoritet") renderCoalition();
+}
+
+/* ---------- start ---------- */
+async function init() {
+  $$("nav button").forEach((b) => b.addEventListener("click", () => setTab(b.dataset.tab)));
+  $("#q").addEventListener("input", (e) => { S.q = e.target.value; if (S.year) renderList(); });
+  $("#votelist").addEventListener("mouseleave", () => {
+    if (S.year && S.pinned != null && matchMedia("(hover: hover)").matches) renderDetail(S.year, S.year.votes[S.pinned]);
+  });
+  let rt;
+  addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(() => S.tab === "majoritet" && renderCoalition(), 200); });
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", renderTab);
+  try {
+    const r = await fetch("data/index.json", { cache: "no-cache" });
+    if (!r.ok) throw new Error(r.status);
+    S.index = await r.json();
+  } catch (e) {
+    $("#detail").replaceChildren(el("div", { class: "empty" }, "Ingen data hittades. Kör python build_data.py och servera mappen över http."));
+    return;
+  }
+  if (!S.index.years.length) return;
+  if (S.index.synthetic) $("#banner").hidden = false;
+  $("#foot").textContent = `Källa: Sveriges riksdag, data.riksdagen.se. Uppdaterad ${S.index.updated}.`;
+  S.from = S.index.years.at(-1).rm;
+  S.to = S.index.years[0].rm;
+  renderFilters();
+  const t = location.hash.slice(1);
+  setTab(["voteringar", "samarbete", "majoritet"].includes(t) ? t : "voteringar");
+  selectYear(S.index.years[0].rm);
+}
+init();
+</script>
+</body>
+</html>
