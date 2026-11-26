@@ -1,11 +1,11 @@
 {
- "updated": "2026-11-25 13:11 UTC",
+ "updated": "2026-11-26 12:49 UTC",
  "source": "Sveriges riksdag, data.riksdagen.se",
  "years": [
   {
    "rm": "2026/27",
    "file": "2026-27.json",
-   "n": 8
+   "n": 16
   },
   {
    "rm": "2025/26",
